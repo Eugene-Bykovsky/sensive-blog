@@ -26,14 +26,12 @@ def serialize_post_optimized(post):
         'title': post.title,
         'teaser_text': post.text[:200],
         'author': post.author.username,
-        'comments_amount': post.comments.count(),
-        # Убираем отдельный SQL-запрос
+        'comments_amount': post.comments_count,
         'image_url': post.image.url if post.image else None,
         'published_at': post.published_at,
         'slug': post.slug,
         'tags': [serialize_tag(tag) for tag in post.tags.all()],
-        'first_tag_title': post.tags.first().title if post.tags.exists() else None,
-        # Безопасный доступ к первому тегу
+        'first_tag_title': post.tags.all()[0].title,
     }
 
 
@@ -45,12 +43,16 @@ def serialize_tag(tag):
 
 
 def index(request):
-    most_popular_posts = (Post.objects.annotate(likes_count=Count('likes'))
-                          .order_by('-likes_count')
-                          .select_related('author')[:5])
+    most_popular_posts = (Post.objects.annotate(
+        likes_count=Count('likes', distinct=True),
+        comments_count=Count('comments', distinct=True))
+        .order_by('-likes_count')
+        .select_related('author')[:5])
 
-    most_fresh_posts = (Post.objects.order_by('-published_at')
-                        .select_related('author')[:5])
+    most_fresh_posts = (Post.objects.annotate(
+        comments_count=Count('comments', distinct=True))
+        .order_by('-published_at')
+        .select_related('author')[:5])
 
     most_popular_tags = (Tag.objects.annotate(posts_count=Count('posts'))
                          .order_by('-posts_count')[:5])
